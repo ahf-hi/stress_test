@@ -95,9 +95,14 @@ export default function () {
 
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
+  check(mkReqResponse, {
+    'mkReq status is 200': (r) => r.status === 200,
+  });
+
   // ==========================================
   // STEP 2: PROTECTED SIGNATURE GENERATION
   // ==========================================
+  let generatedMac = '';
   try {
     const rawSignatureString = 
       formFields.MPI_TRANS_TYPE +
@@ -113,8 +118,8 @@ export default function () {
     const privKeyObj = crypto.createPrivateKey(CONFIG.PRIVATE_KEY);
     const signatureBase64 = crypto.sign('sha256', privKeyObj, rawSignatureString, 'base64');
     
-    formFields.MPI_MAC = base64UrlEncode(signatureBase64);
-    console.log(`[Signature Success] Generated MAC: ${formFields.MPI_MAC}`);
+    generatedMac = base64UrlEncode(signatureBase64);
+    console.log(`[Signature Success] Generated MAC: ${generatedMac}`);
 
   } catch (err) {
     console.log(`[CRITICAL ERROR inside Step 2]: ${err.message || err}`);
@@ -124,11 +129,18 @@ export default function () {
   // STEP 3: EXECUTE PAYMENT SUBMISSION (mpReq)
   // ==========================================
   const cleanedPayload = {};
+  
+  // Clean initial form fields
   Object.keys(formFields).forEach((key) => {
     if (formFields[key] !== '') {
       cleanedPayload[key] = formFields[key];
     }
   });
+
+  // Explicitly inject the computed MAC signature into the payload
+  if (generatedMac) {
+    cleanedPayload['MPI_MAC'] = generatedMac;
+  }
 
   const mpReqParams = {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -136,6 +148,10 @@ export default function () {
 
   const mpReqResponse = http.post(CONFIG.PAYMENT_REQUEST_URL, cleanedPayload, mpReqParams);
   console.log(`[mpReq] Status: ${mpReqResponse.status} | Body: ${mpReqResponse.body}`);
+
+  check(mpReqResponse, {
+    'mpReq status is 200': (r) => r.status === 200,
+  });
 
   sleep(1);
 }
