@@ -15,15 +15,21 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+        with:
+          # Crucial: Tells GitHub to use a token that allows writing changes back to the repo
+          token: ${{ secrets.GITHUB_TOKEN }} 
 
       - name: Run k6 Load Test Routine
         uses: k6io/action@v0.2.0
         with:
           filename: payment_stress_test.js
 
-      # NEW STEP: Save the generated HTML file so you can download it
-      - name: Upload HTML Performance Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: k6-payment-report
-          path: summary.html
+      # NEW STEP: Automatically commit the HTML report back into your repository directory
+      - name: Commit and Push HTML Report
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add summary.html
+          # Only commit if the file actually changed, to prevent empty commit errors
+          git diff-index --quiet HEAD || git commit -m "docs: automated update of k6 performance report [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
