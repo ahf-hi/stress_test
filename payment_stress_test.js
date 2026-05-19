@@ -103,14 +103,14 @@ export default function () {
 
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
-  // Checks for the success string cleanly regardless of the wrapper format
+  // Checks for BOTH standard JSON string format and fallback log formatting
   const mkReqSuccess = check(mkReqResponse, {
     'mkReq status is 200': (r) => r.status === 200,
-    'mkReq returned success state': (r) => r.body.includes('errorCode=000'),
+    'mkReq returned success state': (r) => r.body.includes('"errorCode":"000"') || r.body.includes('errorCode=000'),
   });
 
   if (!mkReqSuccess) {
-    console.log("Stopping loop: Key exchange validation failed.");
+    console.log("Stopping loop: Key exchange validation failed due to response format mismatches.");
     sleep(1);
     return;
   }
