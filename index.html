@@ -3,101 +3,681 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Payment Gateway Stress Tester (Concurrent)</title>
+<title>Payment Gateway Stress Tester</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
   :root {
-    --bg-page: #1a1a1a; --bg-primary: #212121; --bg-secondary: #2a2a2a;
-    --text-primary: #ececec; --text-secondary: #a0a0a0; --text-tertiary: #666666;
-    --border: rgba(255,255,255,0.1); --accent-red: #E24B4A;
+    --bg-page:       #1a1a1a;
+    --bg-primary:    #212121;
+    --bg-secondary:  #2a2a2a;
+    --bg-tertiary:   #333333;
+    --text-primary:  #ececec;
+    --text-secondary:#a0a0a0;
+    --text-tertiary: #666666;
+    --border:        rgba(255,255,255,0.1);
+    --border-md:     rgba(255,255,255,0.18);
+    --radius-md:     8px;
+    --radius-lg:     12px;
+    --accent-blue:   #378ADD;
+    --accent-green:  #1D9E75;
+    --accent-amber:  #EF9F27;
+    --accent-red:    #E24B4A;
+    --tag-ok-bg:     #1a2e14;
+    --tag-ok-fg:     #7ec85a;
+    --tag-err-bg:    #2e1414;
+    --tag-err-fg:    #e87070;
+    --tag-warn-bg:   #2e2314;
+    --tag-warn-fg:   #d4a24a;
+    --badge-run-bg:  #1a2e14;
+    --badge-run-fg:  #7ec85a;
+    --badge-done-bg: #142238;
+    --badge-done-fg: #5aaee8;
+    --badge-stop-bg: #2e2314;
+    --badge-stop-fg: #d4a24a;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-page); color: var(--text-primary); padding: 24px; line-height: 1.6; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: 24px 16px 48px;
+  }
   .container { max-width: 860px; margin: 0 auto; }
-  .section { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .section {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  input, select { width: 100%; background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: 8px; color: var(--text-primary); padding: 8px; outline: none; }
-  .btn-primary { background: #fff; color: #000; padding: 8px 18px; border-radius: 8px; cursor: pointer; border: none; font-weight: 500; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 5px;
+  }
+  input[type=text],
+  input[type=number],
+  select {
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+  input[type=text]:focus,
+  input[type=number]:focus,
+  select:focus { border-color: rgba(255,255,255,0.35); }
+  select { cursor: pointer; }
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    border: none;
+    cursor: pointer;
+  }
+  .divider { border: none; border-top: 0.5px solid var(--border); margin: 16px 0; }
+  .metric {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+  }
+  .metric .lbl { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .metric .val { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .metric .sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+  .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn-primary {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
   .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
-  .btn-danger { background: var(--accent-red); color: #fff; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; }
-  .progress-wrap { background: var(--bg-secondary); border-radius: 20px; height: 5px; overflow: hidden; margin-top: 10px; }
-  .progress-bar { height: 5px; background: #fff; transition: width 0.2s; width: 0%; }
-  .log-wrap { max-height: 240px; overflow-y: auto; background: var(--bg-secondary); border-radius: 8px; font-size: 12px; }
+  .btn-danger {
+    background: var(--accent-red);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    font-size: 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--bg-secondary); }
+  .status-badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+  }
+  .badge-idle   { background: var(--bg-tertiary);   color: var(--text-secondary); }
+  .badge-running{ background: var(--badge-run-bg);  color: var(--badge-run-fg); }
+  .badge-done   { background: var(--badge-done-bg); color: var(--badge-done-fg); }
+  .badge-stopped{ background: var(--badge-stop-bg); color: var(--badge-stop-fg); }
+  .progress-wrap {
+    background: var(--bg-tertiary);
+    border-radius: 20px; height: 5px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 5px; border-radius: 20px;
+    background: var(--text-primary);
+    transition: width 0.3s;
+  }
+  .progress-label { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+  .log-wrap {
+    max-height: 240px; overflow-y: auto;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+  }
+  .log-wrap::-webkit-scrollbar { width: 6px; }
+  .log-wrap::-webkit-scrollbar-track { background: transparent; }
+  .log-wrap::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  thead th {
+    position: sticky; top: 0;
+    background: var(--bg-secondary);
+    padding: 7px 10px;
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 0.5px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr:not(:last-child) td { border-bottom: 0.5px solid var(--border); }
+  td { padding: 5px 10px; color: var(--text-primary); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; vertical-align: middle; }
+  .dot-ok   { background: var(--accent-green); }
+  .dot-err  { background: var(--accent-red); }
+  .dot-warn { background: var(--accent-amber); }
+  .tag {
+    display: inline-block;
+    padding: 1px 7px; border-radius: 4px;
+    font-size: 11px; font-weight: 500;
+  }
+  .tag-ok   { background: var(--tag-ok-bg);   color: var(--tag-ok-fg); }
+  .tag-err  { background: var(--tag-err-bg);  color: var(--tag-err-fg); }
+  .tag-warn { background: var(--tag-warn-bg); color: var(--tag-warn-fg); }
+  .chart-wrap { position: relative; width: 100%; height: 200px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 10px; font-size: 12px; color: var(--text-secondary); }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+  .rate-info {
+    font-size: 12px; color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 7px 12px;
+  }
+  .id-preview {
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 12px; color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 3px 8px;
+    display: inline-block;
+    margin-top: 5px;
+  }
+  .len-ok   { color: var(--tag-ok-fg); }
+  .len-warn { color: var(--tag-err-fg); }
+  .mono { font-family: 'SFMono-Regular', Consolas, monospace; }
+  .empty-row td { text-align: center; color: var(--text-tertiary); padding: 20px; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>Payment Gateway Stress Tester</h1>
-  
+
+  <!-- CONFIGURATION -->
   <div class="section">
+    <div class="section-title">Configuration</div>
     <div class="grid-2">
-      <div><label>Total TXNs</label><input type="number" id="cfg-total" value="50"></div>
-      <div><label>Concurrency</label><input type="number" id="cfg-concurrency" value="10"></div>
+      <div class="field">
+        <label>Merchant ID (MID) — max 15 chars</label>
+        <input type="text" id="cfg-mid" value="SYSSPC000000001" maxlength="15">
+      </div>
+      <div class="field">
+        <label>Amount (cents, e.g. 10000 = RM100)</label>
+        <input type="number" id="cfg-amt" value="10000" min="1">
+      </div>
     </div>
-    <button class="btn-primary" id="btn-start" onclick="startTest()">▶ Start Concurrent Test</button>
-    <button class="btn-danger" id="btn-stop" onclick="stopTest()" disabled>■ Stop</button>
-    <div class="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
-    <div id="progress-label">0 / 0 completed</div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Transaction type</label>
+        <select id="cfg-type">
+          <option value="SALES">SALES</option>
+          <option value="INITRECURR">INITRECURR</option>
+          <option value="PREAUTH">PREAUTH</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Payment channel</label>
+        <input type="text" id="cfg-channel" value="TNG_MY" maxlength="30">
+      </div>
+    </div>
+    <div class="field">
+      <label>Transaction ID prefix — max 4 chars</label>
+      <input type="text" id="cfg-prefix" value="S" maxlength="4" style="width:100px;">
+      <div style="margin-top:6px;display:flex;align-items:center;gap:10px;">
+        <span class="id-preview" id="id-preview">S20260519123456001</span>
+        <span id="id-len" class="len-ok" style="font-size:12px;">19 / 20 chars ✓</span>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="grid-2" style="margin-bottom:12px;">
+      <div class="field">
+        <label>Total transactions to run</label>
+        <input type="number" id="cfg-total" value="20" min="1" max="1000">
+      </div>
+      <div class="field">
+        <label>Concurrency (transactions per batch)</label>
+        <input type="number" id="cfg-concurrency" value="5" min="1" max="50">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Delay between batches (ms) — 0 = fire as fast as possible</label>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:4px;">
+        <input type="range" id="cfg-delay" min="0" max="5000" step="100" value="1000" style="flex:1;">
+        <span id="cfg-delay-out" style="font-size:14px;font-weight:500;min-width:58px;font-variant-numeric:tabular-nums;">1000ms</span>
+      </div>
+    </div>
+    <div class="rate-info">
+      Effective rate: <strong id="rate-preview">5.0 tx/s</strong> — <span id="rate-desc">5 concurrent, batched every 1000ms</span>
+    </div>
   </div>
 
+  <!-- CONTROL -->
   <div class="section">
-    <div class="log-wrap"><table id="log-body" style="width:100%; border-collapse: collapse;"></table></div>
+    <div class="section-title">Control</div>
+    <div class="btn-row">
+      <button class="btn-primary" id="btn-start" onclick="startTest()">▶ Start stress test</button>
+      <button class="btn-danger"  id="btn-stop"  onclick="stopTest()" disabled>■ Stop</button>
+      <button class="btn-ghost"                  onclick="resetAll()">↺ Reset</button>
+      <span id="status-badge" class="status-badge badge-idle">Idle</span>
+    </div>
+    <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+    <div class="progress-label" id="progress-label">0 / 0 completed</div>
   </div>
-</div>
+
+  <!-- SUMMARY -->
+  <div class="section">
+    <div class="section-title">Summary</div>
+    <div class="grid-3" style="margin-bottom:12px;">
+      <div class="metric"><div class="lbl">Completed</div><div class="val" id="m-total">0</div><div class="sub">transactions</div></div>
+      <div class="metric"><div class="lbl">Success rate</div><div class="val" id="m-success">—</div><div class="sub">mkReq + mpReq both ok</div></div>
+      <div class="metric"><div class="lbl">Avg total time</div><div class="val" id="m-avg">—</div><div class="sub">ms per transaction</div></div>
+    </div>
+    <div class="grid-3">
+      <div class="metric"><div class="lbl">Min total time</div><div class="val" id="m-min">—</div><div class="sub">ms</div></div>
+      <div class="metric"><div class="lbl">Max total time</div><div class="val" id="m-max">—</div><div class="sub">ms</div></div>
+      <div class="metric"><div class="lbl">Throughput</div><div class="val" id="m-tps">—</div><div class="sub">tx/s (wall clock)</div></div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="section">
+    <div class="section-title">Timing chart</div>
+    <div class="legend">
+      <span><span class="legend-dot" style="background:#378ADD"></span>mkReq (ms)</span>
+      <span><span class="legend-dot" style="background:#1D9E75"></span>mpReq (ms)</span>
+      <span><span class="legend-dot" style="background:#EF9F27"></span>total (ms)</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="timing-chart" role="img" aria-label="Line chart of mkReq, mpReq and total timing per transaction"></canvas>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="section">
+    <div class="section-title">Transaction log</div>
+    <div class="log-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Txn ID</th><th>Status</th>
+          <th>mkReq (ms)</th><th>mpReq (ms)</th><th>Total (ms)</th>
+          <th>mkReq code</th><th>mpReq code</th><th>Error</th>
+        </tr></thead>
+        <tbody id="log-body">
+          <tr class="empty-row"><td colspan="9">No transactions yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
 
 <script>
-const KEY_EXCHANGE_URL = "https://devlinkv2.paydee.co/mpigwv2/mkReq";
+const KEY_EXCHANGE_URL   = "https://devlinkv2.paydee.co/mpigwv2/mkReq";
 const PAYMENT_REQUEST_URL = "https://devlinkv2.paydee.co/mpigwv2/mpReq";
 const PUBLICKEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98CURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB";
+const PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
+MIIEogIBAAKCAQEAq8j2SHHfzMLlhYppnlk+QqjjjZwMkhK6s6rERd0JhhY/6+Md
+4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxV
+iWe1dzG5TQakJ/i8ZOQuUYFJg02RcwUTzE3ty+x7mkwj9t2wAdRqTagyaDIAVMTx
+P/Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mg
+r3Cyky0F+cHpEFSi3rPSSLD/FVHlJRW2cODVm8E+s98CURQYs1npzDztzZgZPnnb
+9K57CB2Z50Ve6qUV7z4+uHs3nehiMJHktIs7LQIDAQABAoIBAAufb7vBaf0ugfKx
+8D56AaKR+b925korK+hZw/40G9+veV4KQlclrjCsSc854BoeJET9wd18X5em++wp
+Juvf1uqiU6lC54y2up8gH8NLi+CP//shYDoz7aJlwgiqS94L0CIFZvWLHqsHIFxc
+uhUHKsaINr60VcnvVZLHc/UoIwJLT1Hk2gIMnxxnCqkL1m/BNDeYaT30DLMPaeby
+naEsq6JG+pk0szJ9ivTZQrVzWL88qYJor7eR+MGBh65fhhSZyn229EL9DtwVGkU2
+8rlFwcCalhmCIgJO9vPK3QLoomT4FfokuECrxv0UwopYPBXyUycvzHmvbFTt5FS8
+KLgfMcMCgYEAwqKKSeAuoQpJO4x8hP7fYQ94ezoRkDlV9Q5ICcgJW6giMbzT2adg
+d2nuxQIwLRX/P4Dwh2OxCnOrX1FAMxmbs9/6OGgjHhKAAM0pIowZFs4Vqu/QlAZ5
+UdPzHdGuA5oSEBhVMxe0L1dWbQr0UpjemH6gOfswDFYsIawLXOPI+TsCgYEA4fIm
+QqKIBoYAGUPuNfjoK2ZQpRaFGAGuvfpSyljMQDnYJJtOGTW8SI0QFzd31snYx5yP
+vEvkR4lEcVPi6t6Mkdd4KVkmktdjIQ0ZOAlbBaaEWFy6lN7TyINJ7BAYFO/1D3Uj
+4Gi9O7dV7v49Bzp5tVNFrUihM1yfOdUfP3gCFrcCgYB8YtoT6mSCYIt6tgaiDCx/
+4B40SmENFcdcTBs3vRJV9DaeKLoPIEujJR0F5KcbOTKdx+5v6AMt1cxQpyFrRtNd
++ib0Q4El59bMLFE8leI208+/JXHcF+MSq2x0wxr9jEo85QAWHfD2TE+ccmLAIpgn
+Rs1pIKGNUMj1X/kHDT/UHwKBgAsmSeEL6C56OlME2SJsr/hESkJ7RAIVQyw4yBEY
+JKwerp3P1CDGWA40d9DNeeptd3cSML2X+SHWkjwNaasxZDpmKZXQwmiInGmrHc14
+GLfEqc86dDKYdFb2s5UkjiuqU6t5mlWelYf22hS7EwPiTNM30r5kUSAZt/nAnJQj
+NectAoGADXNyBnmq65m1YMlWe+PtDEi/hUZagVDPG7xh3T811fAi6+TZSLXCDVR4
+gju9FJkwjce29Bmt7xbFYRvIfVUGbuvMxvgBJG4A2BG8wrFbIGDLQEk5VYBvSkKK
+hniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=
+-----END RSA PRIVATE KEY-----`;
 
-let running = false, shouldStop = false;
+let running = false, shouldStop = false, results = [], chart = null, startWallClock = null;
+// Global monotonic counter — incremented for every transaction issued this run,
+// guaranteeing unique IDs even when many transactions fire within the same second.
+let _txnCounter = 0;
 
-async function runSingleTransaction(seq) {
-  const r = { seq, status: 'running', totalMs: 0 };
-  const t0 = performance.now();
+function getDateTime() {
+  const d = new Date();
+  return d.getFullYear() +
+    String(d.getMonth()+1).padStart(2,'0') +
+    String(d.getDate()).padStart(2,'0') +
+    String(d.getHours()).padStart(2,'0') +
+    String(d.getMinutes()).padStart(2,'0') +
+    String(d.getSeconds()).padStart(2,'0');
+}
+
+function makeTxnId(seq, prefix) {
+  // Use seq (already unique per transaction) as the discriminator instead of
+  // wall-clock seconds, so concurrent transactions never share an ID.
+  prefix = (prefix || 'S').slice(0,4);
+  const dt = getDateTime();          // 14 chars: YYYYMMDDHHmmss
+  // Remaining space after prefix + date is used for the sequence number.
+  const rem = 20 - prefix.length - dt.length;
+  const seqStr = rem > 0 ? String(seq).padStart(rem, '0').slice(-rem) : '';
+  return (prefix + dt + seqStr).slice(0, 20);
+}
+
+function updateIdPreview() {
+  const prefix = (document.getElementById('cfg-prefix').value || 'S').slice(0,4);
+  const dt = '20260519123456';
+  const rem = 20 - prefix.length - dt.length;
+  const seqStr = rem > 0 ? '1'.padStart(rem,'0') : '';
+  const id = (prefix + dt + seqStr).slice(0,20);
+  document.getElementById('id-preview').textContent = id;
+  const lenEl = document.getElementById('id-len');
+  lenEl.textContent = id.length + ' / 20 chars ' + (id.length <= 20 ? '✓' : '✗');
+  lenEl.className = id.length <= 20 ? 'len-ok' : 'len-warn';
+}
+
+function generateMAC(transType, mid, txnId, date, curr, amt, respType, addlInfo, channelId) {
+  const raw = transType + mid + txnId + date + curr + amt + respType + addlInfo + channelId;
   try {
-    // Simplified fetch logic for demonstration
-    await fetch(KEY_EXCHANGE_URL, { method: 'POST', body: JSON.stringify({}) });
-    await fetch(PAYMENT_REQUEST_URL, { method: 'POST' });
-    r.status = 'ok';
-  } catch(e) { r.status = 'error'; }
-  r.totalMs = Math.round(performance.now() - t0);
+    const cleanKey = PRIVATE_KEY.replace(/^[ \t]+/gm, '');
+    let sig = new KJUR.crypto.Signature({"alg":"SHA256withRSA"});
+    sig.init(cleanKey);
+    sig.updateString(raw);
+    return hextob64(sig.sign()).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  } catch(e) { return null; }
+}
+
+async function runSingleTransaction(seq, cfg) {
+  const mid       = cfg.mid;
+  const amt       = cfg.amt;
+  const transType = cfg.transType;
+  const channel   = cfg.channel;
+  const date      = getDateTime();
+  const txnId     = makeTxnId(seq, cfg.prefix);
+  const curr = '458', respType = 'JSON', addlInfo = '';
+
+  const r = { seq, txnId, status:'running', mkReqMs:null, mpReqMs:null, totalMs:null, mkReqCode:null, mpReqCode:null, error:null };
+  const t0 = performance.now();
+
+  try {
+    const mk0 = performance.now();
+    const mkRes  = await fetch(KEY_EXCHANGE_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ merchantId:mid, pubKey:PUBLICKEY, purchaseId:txnId })
+    });
+    const mkData = await mkRes.json();
+    r.mkReqMs  = Math.round(performance.now() - mk0);
+    r.mkReqCode = mkData.errorCode || mkRes.status;
+
+    if (mkData.errorCode !== '000') {
+      r.status  = 'mkReq-fail';
+      r.totalMs = Math.round(performance.now() - t0);
+      r.error   = mkData.errorMessage || 'mkReq non-000';
+      return r;
+    }
+
+    const mac = generateMAC(transType, mid, txnId, date, curr, amt, respType, addlInfo, channel);
+    if (!mac) throw new Error('MAC generation failed');
+
+    const payload = new URLSearchParams({
+      MPI_TRANS_TYPE: transType, MPI_MERC_ID: mid, MPI_PURCH_DATE: date,
+      MPI_TRXN_ID: txnId, MPI_PURCH_CURR: curr, MPI_PURCH_AMT: amt,
+      MPI_RESPONSE_TYPE: respType, MPI_PAYMENT_CHANNEL_ID: channel,
+      MPI_MAC: mac, MPI_RETURN_URL: 'https://payment-page-virid.vercel.app/api/callback'
+    });
+
+    const mp0 = performance.now();
+    const mpRes  = await fetch(PAYMENT_REQUEST_URL, {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: payload
+    });
+    const mpData = await mpRes.json().catch(() => ({}));
+    r.mpReqMs  = Math.round(performance.now() - mp0);
+    r.mpReqCode = mpData.errorCode || mpData.responseCode || mpRes.status;
+    r.totalMs  = Math.round(performance.now() - t0);
+    r.status   = 'ok';
+
+  } catch(e) {
+    r.error   = e.message || 'Network error';
+    r.status  = 'error';
+    r.totalMs = Math.round(performance.now() - t0);
+  }
   return r;
 }
 
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
 async function startTest() {
   if (running) return;
-  running = true; shouldStop = false;
+  running = true; shouldStop = false; results = [];
+  _txnCounter = 0;  // reset per-run counter
+  startWallClock = performance.now();
   document.getElementById('btn-start').disabled = true;
-  document.getElementById('btn-stop').disabled = false;
-  
-  const total = parseInt(document.getElementById('cfg-total').value);
-  const concurrency = parseInt(document.getElementById('cfg-concurrency').value);
-  
-  let seq = 1, completed = 0;
-  const progressBar = document.getElementById('progress-bar');
+  document.getElementById('btn-stop').disabled  = false;
+  document.getElementById('log-body').innerHTML = '';
+  setBadge('running','Running');
 
-  async function worker() {
-    while (seq <= total && !shouldStop) {
-      const currentSeq = seq++;
-      const res = await runSingleTransaction(currentSeq);
-      completed++;
-      progressBar.style.width = (completed / total * 100) + '%';
-      document.getElementById('progress-label').textContent = `${completed} / ${total} completed`;
-      console.log(`TXN ${res.seq} finished in ${res.totalMs}ms`);
+  const total       = parseInt(document.getElementById('cfg-total').value)       || 10;
+  const concurrency = parseInt(document.getElementById('cfg-concurrency').value) || 5;
+  const delay       = parseInt(document.getElementById('cfg-delay').value)       || 0;
+
+  // Snapshot config once so concurrent transactions don't race on DOM reads
+  const cfg = {
+    mid:       document.getElementById('cfg-mid').value.trim(),
+    amt:       document.getElementById('cfg-amt').value.trim(),
+    transType: document.getElementById('cfg-type').value,
+    channel:   document.getElementById('cfg-channel').value.trim(),
+    prefix:    (document.getElementById('cfg-prefix').value || 'S').slice(0,4),
+  };
+
+  initChart(); updateMetrics();
+  let seq = 1, completed = 0;
+
+  while (seq <= total && !shouldStop) {
+    const batchSize = Math.min(concurrency, total - seq + 1);
+    const batch = Array.from({length:batchSize}, (_,i) => runSingleTransaction(seq+i, cfg));
+    seq += batchSize;
+    const batchResults = await Promise.all(batch);
+    for (const r of batchResults) {
+      results.push(r); completed++;
+      appendRow(r);
+      updateProgress(completed, total);
+      updateMetrics();
+      pushChartPoint(r);
     }
+    if (seq <= total && !shouldStop && delay > 0) await sleep(delay);
   }
 
-  const workers = Array.from({ length: concurrency }, worker);
-  await Promise.all(workers);
-  
   running = false;
   document.getElementById('btn-start').disabled = false;
-  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('btn-stop').disabled  = true;
+  setBadge(shouldStop ? 'stopped' : 'done', shouldStop ? 'Stopped' : 'Done');
+  updateMetrics();
 }
 
-function stopTest() { shouldStop = true; }
+function stopTest()  { shouldStop = true; document.getElementById('btn-stop').disabled = true; }
+
+function resetAll() {
+  if (running) return;
+  results = [];
+  document.getElementById('log-body').innerHTML = '<tr class="empty-row"><td colspan="9">No transactions yet</td></tr>';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-label').textContent = '0 / 0 completed';
+  setBadge('idle','Idle');
+  ['m-total','m-success','m-avg','m-min','m-max','m-tps'].forEach(id =>
+    document.getElementById(id).textContent = id === 'm-total' ? '0' : '—');
+  if (chart) { chart.destroy(); chart = null; }
+}
+
+function setBadge(type, text) {
+  const b = document.getElementById('status-badge');
+  b.className = 'status-badge badge-' + type;
+  b.textContent = text;
+}
+
+function updateProgress(done, total) {
+  document.getElementById('progress-bar').style.width = Math.round(done/total*100) + '%';
+  document.getElementById('progress-label').textContent = done + ' / ' + total + ' completed';
+}
+
+function updateMetrics() {
+  const done = results.filter(r => r.totalMs !== null);
+  document.getElementById('m-total').textContent = done.length;
+  if (!done.length) return;
+  const ok  = done.filter(r => r.status === 'ok');
+  document.getElementById('m-success').textContent = Math.round(ok.length/done.length*100) + '%';
+  const times = done.map(r => r.totalMs).filter(v => v > 0);
+  if (times.length) {
+    document.getElementById('m-avg').textContent = Math.round(times.reduce((a,b)=>a+b,0)/times.length);
+    document.getElementById('m-min').textContent = Math.min(...times);
+    document.getElementById('m-max').textContent = Math.max(...times);
+  }
+  if (startWallClock && done.length > 1) {
+    const elapsed = (performance.now() - startWallClock) / 1000;
+    document.getElementById('m-tps').textContent = (done.length/elapsed).toFixed(2);
+  }
+}
+
+function appendRow(r) {
+  const tbody = document.getElementById('log-body');
+  const empty = tbody.querySelector('.empty-row');
+  if (empty) empty.remove();
+
+  const dotCls = r.status==='ok' ? 'dot-ok' : r.status==='error' ? 'dot-err' : 'dot-warn';
+  const tag = r.status==='ok'
+    ? '<span class="tag tag-ok">ok</span>'
+    : r.status==='mkReq-fail'
+    ? '<span class="tag tag-warn">mkReq fail</span>'
+    : '<span class="tag tag-err">error</span>';
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><span class="dot ${dotCls}"></span> ${r.seq}</td>
+    <td class="mono" style="font-size:11px;">${r.txnId} <span style="color:#555">(${r.txnId.length})</span></td>
+    <td>${tag}</td>
+    <td>${r.mkReqMs ?? '—'}</td>
+    <td>${r.mpReqMs ?? '—'}</td>
+    <td style="font-weight:500;">${r.totalMs ?? '—'}</td>
+    <td>${r.mkReqCode ?? '—'}</td>
+    <td>${r.mpReqCode ?? '—'}</td>
+    <td style="font-size:11px;color:#888;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.error||''}">${r.error||'—'}</td>`;
+  tbody.appendChild(tr);
+  tr.scrollIntoView({block:'nearest'});
+}
+
+function initChart() {
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('timing-chart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label:'mkReq (ms)', data:[], borderColor:'#378ADD', backgroundColor:'transparent', pointRadius:3, pointBackgroundColor:'#378ADD', tension:0.3, borderWidth:1.5, spanGaps:true },
+        { label:'mpReq (ms)', data:[], borderColor:'#1D9E75', backgroundColor:'transparent', pointRadius:3, pointBackgroundColor:'#1D9E75', tension:0.3, borderWidth:1.5, spanGaps:true },
+        { label:'Total (ms)', data:[], borderColor:'#EF9F27', backgroundColor:'transparent', pointRadius:3, pointBackgroundColor:'#EF9F27', tension:0.3, borderWidth:1.5, spanGaps:true }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ ticks:{ color:'#888', autoSkip:true, maxTicksLimit:20, font:{size:11} }, grid:{ color:'rgba(255,255,255,0.05)' } },
+        y:{ ticks:{ color:'#888', font:{size:11} }, grid:{ color:'rgba(255,255,255,0.05)' } }
+      },
+      animation:{ duration:200 }
+    }
+  });
+}
+
+function pushChartPoint(r) {
+  if (!chart) return;
+  chart.data.labels.push('#'+r.seq);
+  chart.data.datasets[0].data.push(r.mkReqMs ?? null);
+  chart.data.datasets[1].data.push(r.mpReqMs ?? null);
+  chart.data.datasets[2].data.push(r.totalMs ?? null);
+  chart.update('none');
+}
+
+function updateRatePreview() {
+  const c = parseInt(document.getElementById('cfg-concurrency').value) || 1;
+  const d = parseInt(document.getElementById('cfg-delay').value) || 0;
+  if (d === 0) {
+    document.getElementById('rate-preview').textContent = c + ' tx/batch';
+    document.getElementById('rate-desc').textContent = 'fire as fast as possible — all ' + c + ' run concurrently, next batch starts immediately';
+  } else {
+    document.getElementById('rate-preview').textContent = (c/(d/1000)).toFixed(1) + ' tx/s';
+    document.getElementById('rate-desc').textContent = c + ' concurrent, batched every ' + d + 'ms';
+  }
+}
+
+document.getElementById('cfg-delay').addEventListener('input', function() {
+  document.getElementById('cfg-delay-out').textContent = this.value + 'ms';
+  updateRatePreview();
+});
+document.getElementById('cfg-concurrency').addEventListener('input', updateRatePreview);
+document.getElementById('cfg-prefix').addEventListener('input', updateIdPreview);
+
+updateRatePreview();
+updateIdPreview();
 </script>
 </body>
 </html>
