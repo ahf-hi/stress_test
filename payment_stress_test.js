@@ -9,10 +9,10 @@ import { check, sleep } from 'k6';
 const CONFIG = {
   KEY_EXCHANGE_URL: "https://devlinkv2.paydee.co/mpigwv2/mkReq",
   PAYMENT_REQUEST_URL: "https://devlinkv2.paydee.co/mpigwv2/mpReq",
-  PUBLIC_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98CURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB",
+  PUBLIC_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98AURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB",
   VERCEL_CALLBACK_URL: "https://payment-page-virid.vercel.app/api/callback",
   
-  // Cleaned version of your original PKCS#1 Private Key
+  // Cleaned Base64 key payload
   CLEAN_KEY: "MIIEogIBAAKCAQEAq8j2SHHfzMLlhYppnlk+QqjjjZwMkhK6s6rERd0JhhY/6+Md" +
     "4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxV" +
     "iWe1dzG5TQakJ/i8ZOQuUYFJg02RcwUTzE3ty+x7mkwj9t2wAdRqTagyaDIAVMTx" +
@@ -106,14 +106,14 @@ export default function () {
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: SECURE OBJ INITIALIZATION
+  // STEP 2: BULLETPROOF HEX SIGN INITIALIZATION
   // ==========================================
   let base64UrlValue = '';
   try {
     loadJsrsasign();
 
     const KJUR = globalThis.KJUR;
-    const KEYUTIL = globalThis.KEYUTIL;
+    const b64tohex = globalThis.b64tohex;
     const hextob64 = globalThis.hextob64;
 
     const rawString = 
@@ -127,11 +127,11 @@ export default function () {
       formFields.MPI_ADDITIONAL_INFO_IND +
       formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Direct object conversion bypassing string format verification completely
-    const rsaKeyObject = KEYUTIL.getKey({
-      prvKeyObj: null,
-      businessCategory: null
-    }, null, CONFIG.CLEAN_KEY);
+    // Convert Base64 private key completely to a clean HEX string
+    const privateKeyHex = b64tohex(CONFIG.CLEAN_KEY);
+
+    // Read the private key directly via its HEX property option string format
+    const rsaKeyObject = KJUR.crypto.ECDSA.getKey({ prvKeyHex: privateKeyHex });
 
     let sig = new KJUR.crypto.Signature({"alg": "SHA256withRSA"});
     sig.init(rsaKeyObject); 
