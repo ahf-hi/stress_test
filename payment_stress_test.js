@@ -1,4 +1,4 @@
-// --- BROWSER SHIM FOR K6 COMPATIBILITY ---
+// --- 1. BROWSER SHIM FOR K6 COMPATIBILITY ---
 globalThis.navigator = { userAgent: "k6" };
 globalThis.window = globalThis;
 
@@ -46,6 +46,24 @@ export const options = {
   iterations: 1,
 };
 
+// --- 2. EVALUATION LOADER FOR OUTDATED BABEL PARSERS ---
+// This runtime-eval completely sidesteps ESM static/dynamic hoisting glitches.
+const JSRSASIGN_URL = "https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js";
+let jsrsasignLoaded = false;
+
+function loadJsrsasign() {
+  if (jsrsasignLoaded) return;
+  
+  const res = http.get(JSRSASIGN_URL);
+  if (res.status !== 200) {
+    throw new Error(`Failed to download jsrsasign library string wrapper from CDN. Code: ${res.status}`);
+  }
+  
+  // Safe evaluation context execution inside the engine environment scope
+  (0, eval)(res.body); 
+  jsrsasignLoaded = true;
+}
+
 function getFormattedDate() {
   const d = new Date();
   return d.getFullYear().toString() +
@@ -56,8 +74,7 @@ function getFormattedDate() {
          d.getSeconds().toString().padStart(2, '0');
 }
 
-// Main execution block must be asynchronous for dynamic importing
-export default async function () {
+export default function () {
   const d = new Date();
   const shortTime = d.getDate().toString().padStart(2, '0') +
                     d.getHours().toString().padStart(2, '0') +
@@ -94,14 +111,16 @@ export default async function () {
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: DYNAMICALLY INITIALIZE CRYPTO
+  // STEP 2: SAFE EVAL CRYPTO LOAD & SIGN
   // ==========================================
   let base64UrlValue = '';
   try {
-    // Dynamic import forces k6 to register globalThis.navigator first!
-    const cryptoLib = await import('https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js');
-    const KJUR = cryptoLib.KJUR;
-    const hextob64 = cryptoLib.hextob64;
+    // Dynamically evaluate text source string layout cleanly 
+    loadJsrsasign();
+
+    // Pull from the newly evaluated global context window objects
+    const KJUR = globalThis.KJUR;
+    const hextob64 = globalThis.hextob64;
 
     const rawString = 
       formFields.MPI_TRANS_TYPE +
@@ -114,7 +133,7 @@ export default async function () {
       formFields.MPI_ADDITIONAL_INFO_IND +
       formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Run the identical signature configuration matching your UI scripts
+    // Identical exact match to your browser's cryptographic execution stack
     let sig = new KJUR.crypto.Signature({"alg": "SHA256withRSA"});
     sig.init(CONFIG.PRIVATE_KEY); 
     sig.updateString(rawString);
@@ -129,7 +148,7 @@ export default async function () {
     console.log(`[Signature Success] Generated 256-byte RSA MAC: ${base64UrlValue}`);
 
   } catch (err) {
-    console.log(`[CRITICAL ERROR inside JSRSASIGN Execution]: ${err.message || err}`);
+    console.log(`[CRITICAL ERROR inside Dynamic Eval Engine Step]: ${err.message || err}`);
     return;
   }
 
