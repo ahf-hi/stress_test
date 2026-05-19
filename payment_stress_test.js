@@ -2,7 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import crypto from 'k6/crypto';
 
-// --- CONFIGURATION MATCHING YOUR HTML ---
+// --- CONFIGURATION ---
 const CONFIG = {
   KEY_EXCHANGE_URL: "https://devlinkv2.paydee.co/mpigwv2/mkReq",
   PAYMENT_REQUEST_URL: "https://devlinkv2.paydee.co/mpigwv2/mpReq",
@@ -38,14 +38,13 @@ hniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=
 -----END RSA PRIVATE KEY-----`
 };
 
-// --- DEBUG LOAD PROFILE ---
+// --- SINGLE TRANSACTION TESTING PROFILE ---
 export const options = {
-  vus: 1,             // Drop down to 1 user for safe tracking & debugging initial connection
-  iterations: 1,      // Stop the test completely after exactly 1 loop iteration
-  // duration: '5s',  // Run for 5 seconds to analyze response logs
+  vus: 1,
+  iterations: 1,
 };
 
-// --- HELPER: GENERATE STANDARD 14-DIGIT TIMESTAMP FOR FIELD USE ---
+// --- HELPER: STANDARD 14-DIGIT TIMESTAMP ---
 function getFormattedDate() {
   const d = new Date();
   return d.getFullYear().toString() +
@@ -64,28 +63,26 @@ function base64UrlEncode(str) {
     .replace(/=/g, '');
 }
 
-// --- VIRTUAL USER EXECUTION LOOP ---
+// --- MAIN RUNNER FUNCTION ---
 export default function () {
-  // 1. Setup exact unique transaction string (Strictly capped at 20 characters)
   const d = new Date();
   const shortTime = d.getDate().toString().padStart(2, '0') +
                     d.getHours().toString().padStart(2, '0') +
                     d.getMinutes().toString().padStart(2, '0') +
-                    d.getSeconds().toString().padStart(2, '0'); // 8 characters
+                    d.getSeconds().toString().padStart(2, '0');
   
-  const vuPart = __VU.toString().padStart(2, '0');     // 2 characters
-  const iterPart = __ITER.toString().padStart(4, '0'); // 4 characters
+  const vuPart = __VU.toString().padStart(2, '0');
+  const iterPart = __ITER.toString().padStart(4, '0');
   
-  // DMYPAG(6) + shortTime(8) + vuPart(2) + iterPart(4) = EXACTLY 20 CHARACTERS
   const mpiTrxnId = `DMYPAG${shortTime}${vuPart}${iterPart}`; 
 
   const formFields = {
     MPI_TRANS_TYPE: 'SALES',
     MPI_MERC_ID: 'SYSSPC000000001',
-    MPI_PURCH_DATE: getFormattedDate(), // Expected standard format (14 digits)
-    MPI_TRXN_ID: mpiTrxnId,              // Strict 20 character field payload
+    MPI_PURCH_DATE: getFormattedDate(),
+    MPI_TRXN_ID: mpiTrxnId,
     MPI_PURCH_CURR: '458',
-    MPI_PURCH_AMT: '100', 
+    MPI_PURCH_AMT: '10.00', 
     MPI_RESPONSE_TYPE: 'JSON',
     MPI_ADDITIONAL_INFO_IND: '', 
     MPI_PAYMENT_CHANNEL_ID: 'TNG_MY',
@@ -104,17 +101,16 @@ export default function () {
   const mkReqParams = { headers: { 'Content-Type': 'application/json' } };
   const mkReqResponse = http.post(CONFIG.KEY_EXCHANGE_URL, mkReqPayload, mkReqParams);
 
-  // Print results directly to GitHub console for analysis
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
+  // Checks for the success string cleanly regardless of the wrapper format
   const mkReqSuccess = check(mkReqResponse, {
     'mkReq status is 200': (r) => r.status === 200,
-    'mkReq returned 000 success': (r) => {
-       try { return r.json().errorCode === '000'; } catch(e) { return false; }
-    },
+    'mkReq returned success state': (r) => r.body.includes('errorCode=000'),
   });
 
   if (!mkReqSuccess) {
+    console.log("Stopping loop: Key exchange validation failed.");
     sleep(1);
     return;
   }
@@ -133,7 +129,6 @@ export default function () {
     formFields.MPI_ADDITIONAL_INFO_IND +
     formFields.MPI_PAYMENT_CHANNEL_ID;
 
-  // Sign using SHA256withRSA
   const signatureBase64 = crypto.sign(
     'sha256', 
     crypto.createPrivateKey(CONFIG.PRIVATE_KEY), 
@@ -159,7 +154,6 @@ export default function () {
 
   const mpReqResponse = http.post(CONFIG.PAYMENT_REQUEST_URL, cleanedPayload, mpReqParams);
 
-  // Print raw result data output for payment loop verification
   console.log(`[mpReq] Status: ${mpReqResponse.status} | Body: ${mpReqResponse.body}`);
 
   check(mpReqResponse, {
