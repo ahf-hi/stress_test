@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Gateway Stress Tester (Concurrent)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg-page: #1a1a1a; --bg-primary: #212121; --bg-secondary: #2a2a2a;
+    --text-primary: #ececec; --text-secondary: #a0a0a0; --text-tertiary: #666666;
+    --border: rgba(255,255,255,0.1); --accent-red: #E24B4A;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-page); color: var(--text-primary); padding: 24px; line-height: 1.6; }
+  .container { max-width: 860px; margin: 0 auto; }
+  .section { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  input, select { width: 100%; background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: 8px; color: var(--text-primary); padding: 8px; outline: none; }
+  .btn-primary { background: #fff; color: #000; padding: 8px 18px; border-radius: 8px; cursor: pointer; border: none; font-weight: 500; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-danger { background: var(--accent-red); color: #fff; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; }
+  .progress-wrap { background: var(--bg-secondary); border-radius: 20px; height: 5px; overflow: hidden; margin-top: 10px; }
+  .progress-bar { height: 5px; background: #fff; transition: width 0.2s; width: 0%; }
+  .log-wrap { max-height: 240px; overflow-y: auto; background: var(--bg-secondary); border-radius: 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Payment Gateway Stress Tester</h1>
+  
+  <div class="section">
+    <div class="grid-2">
+      <div><label>Total TXNs</label><input type="number" id="cfg-total" value="50"></div>
+      <div><label>Concurrency</label><input type="number" id="cfg-concurrency" value="10"></div>
+    </div>
+    <button class="btn-primary" id="btn-start" onclick="startTest()">▶ Start Concurrent Test</button>
+    <button class="btn-danger" id="btn-stop" onclick="stopTest()" disabled>■ Stop</button>
+    <div class="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+    <div id="progress-label">0 / 0 completed</div>
+  </div>
+
+  <div class="section">
+    <div class="log-wrap"><table id="log-body" style="width:100%; border-collapse: collapse;"></table></div>
+  </div>
+</div>
+
+<script>
+const KEY_EXCHANGE_URL = "https://devlinkv2.paydee.co/mpigwv2/mkReq";
+const PAYMENT_REQUEST_URL = "https://devlinkv2.paydee.co/mpigwv2/mpReq";
+const PUBLICKEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98CURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB";
+
+let running = false, shouldStop = false;
+
+async function runSingleTransaction(seq) {
+  const r = { seq, status: 'running', totalMs: 0 };
+  const t0 = performance.now();
+  try {
+    // Simplified fetch logic for demonstration
+    await fetch(KEY_EXCHANGE_URL, { method: 'POST', body: JSON.stringify({}) });
+    await fetch(PAYMENT_REQUEST_URL, { method: 'POST' });
+    r.status = 'ok';
+  } catch(e) { r.status = 'error'; }
+  r.totalMs = Math.round(performance.now() - t0);
+  return r;
+}
+
+async function startTest() {
+  if (running) return;
+  running = true; shouldStop = false;
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-stop').disabled = false;
+  
+  const total = parseInt(document.getElementById('cfg-total').value);
+  const concurrency = parseInt(document.getElementById('cfg-concurrency').value);
+  
+  let seq = 1, completed = 0;
+  const progressBar = document.getElementById('progress-bar');
+
+  async function worker() {
+    while (seq <= total && !shouldStop) {
+      const currentSeq = seq++;
+      const res = await runSingleTransaction(currentSeq);
+      completed++;
+      progressBar.style.width = (completed / total * 100) + '%';
+      document.getElementById('progress-label').textContent = `${completed} / ${total} completed`;
+      console.log(`TXN ${res.seq} finished in ${res.totalMs}ms`);
+    }
+  }
+
+  const workers = Array.from({ length: concurrency }, worker);
+  await Promise.all(workers);
+  
+  running = false;
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled = true;
+}
+
+function stopTest() { shouldStop = true; }
+</script>
+</body>
+</html>
