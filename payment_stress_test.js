@@ -12,7 +12,7 @@ const CONFIG = {
   PUBLIC_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98CURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB",
   VERCEL_CALLBACK_URL: "https://payment-page-virid.vercel.app/api/callback",
   
-  // Cleaned key payload
+  // Back to the original clean key structure
   CLEAN_KEY: "MIIEogIBAAKCAQEAq8j2SHHfzMLlhYppnlk+QqjjjZwMkhK6s6rERd0JhhY/6+Md" +
     "4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxV" +
     "iWe1dzG5TQakJ/i8ZOQuUYFJg02RcwUTzE3ty+x7mkwj9t2wAdRqTagyaDIAVMTx" +
@@ -106,14 +106,13 @@ export default function () {
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: PKCS#8 TRANSLATION SIGN ENGINE
+  // STEP 2: NATIVE PKCS#1 INITIALIZATION
   // ==========================================
   let base64UrlValue = '';
   try {
     loadJsrsasign();
 
     const KJUR = globalThis.KJUR;
-    const KEYUTIL = globalThis.KEYUTIL;
     const hextob64 = globalThis.hextob64;
 
     const rawString = 
@@ -127,14 +126,15 @@ export default function () {
       formFields.MPI_ADDITIONAL_INFO_IND +
       formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Force strict structure by re-wrapping with standard modern PKCS#8 headers
-    const strictlyFormattedPem = "-----BEGIN PRIVATE KEY-----\n" + CONFIG.CLEAN_KEY + "\n-----END PRIVATE KEY-----";
+    // Direct PKCS#1 object assignment completely skipping KEYUTIL regex traps
+    const rsaKey = new KJUR.crypto.RSAKey();
     
-    // Read Private Key Object
-    const rsaKeyObject = KEYUTIL.getKey(strictlyFormattedPem);
+    // Explicitly wraps your clean string back to the correct PKCS#1 format
+    const pkcs1Pem = "-----BEGIN RSA PRIVATE KEY-----\n" + CONFIG.CLEAN_KEY + "\n-----END RSA PRIVATE KEY-----";
+    rsaKey.readPrivateKeyFromPEMString(pkcs1Pem);
 
     let sig = new KJUR.crypto.Signature({"alg": "SHA256withRSA"});
-    sig.init(rsaKeyObject); 
+    sig.init(rsaKey); 
     sig.updateString(rawString);
     let sigValueHex = sig.sign();
     
