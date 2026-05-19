@@ -1,0 +1,22 @@
+name: Payment Gateway Stress Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows you to trigger the test manually from GitHub web interface
+
+jobs:
+  run-k6-stress:
+    name: Execute k6 Load Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Run k6 Load Test Routine
+        uses: grafana/k6-action@v1
+        with:
+          filename: payment_stress_test.js
