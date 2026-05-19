@@ -40,8 +40,9 @@ hniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=
 
 // --- DEBUG LOAD PROFILE ---
 export const options = {
-  vus: 1,          // Drop down to 1 user for safe tracking & debugging initial connection
-  duration: '5s',  // Run for 5 seconds to analyze response logs
+  vus: 1,             // Drop down to 1 user for safe tracking & debugging initial connection
+  iterations: 1,      // Stop the test completely after exactly 1 loop iteration
+  // duration: '5s',  // Run for 5 seconds to analyze response logs
 };
 
 // --- HELPER: GENERATE STANDARD 14-DIGIT TIMESTAMP FOR FIELD USE ---
@@ -166,4 +167,13 @@ export default function () {
   });
 
   sleep(1);
+}
+
+// ADD THIS TO THE BOTTOM OF YOUR SCRIPT FOR HTML REPORTS
+import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
+
+export function handleSummary(data) {
+  return {
+    "summary.html": htmlReport(data),
+  };
 }
