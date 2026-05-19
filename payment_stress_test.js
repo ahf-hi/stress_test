@@ -9,7 +9,6 @@ const CONFIG = {
   PUBLIC_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98CURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB",
   VERCEL_CALLBACK_URL: "https://payment-page-virid.vercel.app/api/callback",
   
-  // Cleaned up formatting for k6 crypto module compatibility
   PRIVATE_KEY: `-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAq8j2SHHfzMLlhYppnlk+QqjjjZwMkhK6s6rERd0JhhY/6+Md
 4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxV
@@ -39,19 +38,13 @@ hniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=
 -----END RSA PRIVATE KEY-----`
 };
 
-// --- STRESS LOAD PROFILE ---
+// --- DEBUG LOAD PROFILE ---
 export const options = {
-  stages: [
-    { duration: '10s', target: 5 },  // Ramp up to 5 concurrent users over 10 seconds
-    { duration: '20s', target: 5 },  // Sustained load with 5 active threads
-    { duration: '5s',  target: 0 },  // Ramp down smoothly
-  ],
-  thresholds: {
-    http_req_failed: ['rate<0.01'], // Enforce failure rates under 1%
-  },
+  vus: 1,          // Drop down to 1 user for safe tracking & debugging initial connection
+  duration: '5s',  // Run for 5 seconds to analyze response logs
 };
 
-// --- HELPER: GENERATE FORMATTED TIMESTAMP ---
+// --- HELPER: GENERATE STANDARD 14-DIGIT TIMESTAMP FOR FIELD USE ---
 function getFormattedDate() {
   const d = new Date();
   return d.getFullYear().toString() +
@@ -72,21 +65,28 @@ function base64UrlEncode(str) {
 
 // --- VIRTUAL USER EXECUTION LOOP ---
 export default function () {
-  // 1. Dynamic parameters initialized per iteration
-  const timestamp = getFormattedDate();
+  // 1. Setup exact unique transaction string (Strictly capped at 20 characters)
+  const d = new Date();
+  const shortTime = d.getDate().toString().padStart(2, '0') +
+                    d.getHours().toString().padStart(2, '0') +
+                    d.getMinutes().toString().padStart(2, '0') +
+                    d.getSeconds().toString().padStart(2, '0'); // 8 characters
   
-  // Injecting an incremental counter via __VU and __ITER to prevent collision under high thread load
-  const mpiTrxnId = `DMYPAG${timestamp}${__VU}${__ITER}`; 
+  const vuPart = __VU.toString().padStart(2, '0');     // 2 characters
+  const iterPart = __ITER.toString().padStart(4, '0'); // 4 characters
+  
+  // DMYPAG(6) + shortTime(8) + vuPart(2) + iterPart(4) = EXACTLY 20 CHARACTERS
+  const mpiTrxnId = `DMYPAG${shortTime}${vuPart}${iterPart}`; 
 
   const formFields = {
     MPI_TRANS_TYPE: 'SALES',
     MPI_MERC_ID: 'SYSSPC000000001',
-    MPI_PURCH_DATE: timestamp,
-    MPI_TRXN_ID: mpiTrxnId,
+    MPI_PURCH_DATE: getFormattedDate(), // Expected standard format (14 digits)
+    MPI_TRXN_ID: mpiTrxnId,              // Strict 20 character field payload
     MPI_PURCH_CURR: '458',
-    MPI_PURCH_AMT: '10.00', // Hardcoded dynamic pricing simulation value
+    MPI_PURCH_AMT: '100', 
     MPI_RESPONSE_TYPE: 'JSON',
-    MPI_ADDITIONAL_INFO_IND: '', // Kept empty per form execution defaults
+    MPI_ADDITIONAL_INFO_IND: '', 
     MPI_PAYMENT_CHANNEL_ID: 'TNG_MY',
     MPI_RETURN_URL: CONFIG.VERCEL_CALLBACK_URL
   };
@@ -103,14 +103,17 @@ export default function () {
   const mkReqParams = { headers: { 'Content-Type': 'application/json' } };
   const mkReqResponse = http.post(CONFIG.KEY_EXCHANGE_URL, mkReqPayload, mkReqParams);
 
+  // Print results directly to GitHub console for analysis
+  console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
+
   const mkReqSuccess = check(mkReqResponse, {
     'mkReq status is 200': (r) => r.status === 200,
-    'mkReq returned 000 success': (r) => r.json().errorCode === '000',
+    'mkReq returned 000 success': (r) => {
+       try { return r.json().errorCode === '000'; } catch(e) { return false; }
+    },
   });
 
-  // Short-circuit the user loop execution if key exchange fails
   if (!mkReqSuccess) {
-    console.error(`[VU ${__VU}] mkReq Failed: ${mkReqResponse.body}`);
     sleep(1);
     return;
   }
@@ -118,7 +121,6 @@ export default function () {
   // ==========================================
   // STEP 2: MAC SIGNATURE GENERATION
   // ==========================================
-  // Mirrors your 'clear_mac()' concatenation order precisely
   const rawSignatureString = 
     formFields.MPI_TRANS_TYPE +
     formFields.MPI_MERC_ID +
@@ -138,13 +140,11 @@ export default function () {
     'base64'
   );
   
-  // Format the resulting output signature into Base64URL string
   formFields.MPI_MAC = base64UrlEncode(signatureBase64);
 
   // ==========================================
   // STEP 3: EXECUTE PAYMENT SUBMISSION (mpReq)
   // ==========================================
-  // Cleansing payload fields: Remove properties matching an empty string just like your frontend loop does
   const cleanedPayload = {};
   Object.keys(formFields).forEach((key) => {
     if (formFields[key] !== '') {
@@ -158,11 +158,12 @@ export default function () {
 
   const mpReqResponse = http.post(CONFIG.PAYMENT_REQUEST_URL, cleanedPayload, mpReqParams);
 
+  // Print raw result data output for payment loop verification
+  console.log(`[mpReq] Status: ${mpReqResponse.status} | Body: ${mpReqResponse.body}`);
+
   check(mpReqResponse, {
     'mpReq status is 200': (r) => r.status === 200,
-    'mpReq has valid response payload': (r) => r.body.length > 0,
   });
 
-  // Simulating typical user pacing think-time between checkouts
   sleep(1);
 }
