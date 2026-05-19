@@ -169,11 +169,34 @@ export default function () {
   sleep(1);
 }
 
-// ADD THIS TO THE BOTTOM OF YOUR SCRIPT FOR HTML REPORTS
-import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
-
+// --- SELF-CONTAINED REPORT GENERATOR ---
 export function handleSummary(data) {
   return {
-    "summary.html": htmlReport(data),
+    'summary.html': `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Payment Test Results</title>
+      <style>
+        body { font-family: -apple-system, sans-serif; padding: 40px; background: #f4f6f9; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto; }
+        h1 { color: #2563eb; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; font-size: 24px; margin-top: 0; }
+        .metric { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f0f4f8; font-size: 16px; }
+        .value { font-weight: bold; color: #1e293b; }
+        .footer { margin-top: 25px; font-size: 12px; color: #94a3b8; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>k6 Payment Test Summary</h1>
+        <div class="metric"><span>Total Request Loops:</span><span class="value">${data.metrics.iterations.values.count}</span></div>
+        <div class="metric"><span>HTTP Request Failures:</span><span class="value">${data.metrics.http_req_failed.values.passes}</span></div>
+        <div class="metric"><span>Average Response Time:</span><span class="value">${Math.round(data.metrics.http_req_duration.values.avg)} ms</span></div>
+        <div class="footer">Generated automatically via GitHub Actions pipeline.</div>
+      </div>
+    </body>
+    </html>
+    `,
   };
 }
