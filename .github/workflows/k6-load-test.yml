@@ -16,8 +16,7 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup k6
-        uses: k6io/action@v0.2.0
-
       - name: Run k6 Load Test Routine
-        run: k6 run payment_stress_test.js
+        uses: k6io/action@v0.2.0
+        with:
+          filename: payment_stress_test.js   # This forces it to target your wallet script
