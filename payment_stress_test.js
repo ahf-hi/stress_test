@@ -1,6 +1,9 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import crypto from 'k6/crypto';
+
+// --- IMPORT JSRSASIGN PURE JS CRYPTO VIA CDN ---
+// This completely bypasses the broken native k6 crypto engine!
+import { KJUR, hextob64 } from 'https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js';
 
 // --- CONFIGURATION ---
 const CONFIG = {
@@ -53,10 +56,6 @@ function getFormattedDate() {
          d.getSeconds().toString().padStart(2, '0');
 }
 
-function base64UrlEncode(str) {
-  return str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
 export default function () {
   const d = new Date();
   const shortTime = d.getDate().toString().padStart(2, '0') +
@@ -91,15 +90,14 @@ export default function () {
 
   const mkReqParams = { headers: { 'Content-Type': 'application/json' } };
   const mkReqResponse = http.post(CONFIG.KEY_EXCHANGE_URL, mkReqPayload, mkReqParams);
-
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: BACKWARD COMPATIBLE SIGNATURE GENERATION
+  // STEP 2: MIRRORED PAGE-SCRIPT SIGNATURE ENGINE
   // ==========================================
-  let generatedMac = '';
+  let base64UrlValue = '';
   try {
-    const rawSignatureString = 
+    const rawString = 
       formFields.MPI_TRANS_TYPE +
       formFields.MPI_MERC_ID +
       formFields.MPI_TRXN_ID +
@@ -110,23 +108,23 @@ export default function () {
       formFields.MPI_ADDITIONAL_INFO_IND +
       formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Direct fallback compatibility method check for older k6 build layers
-    if (typeof crypto.sign === 'function') {
-      const signatureBase64 = crypto.sign('sha256', CONFIG.PRIVATE_KEY, rawSignatureString, 'base64');
-      generatedMac = base64UrlEncode(signatureBase64);
-    } else {
-      // Version handles signing inside standard HMAC fallback context if RSA string functions are missing
-      console.log("[Notice] Using HMAC-SHA256 generation fallback due to legacy k6 environment engine limits.");
-      const signatureHex = crypto.hmac('sha256', CONFIG.PRIVATE_KEY, rawSignatureString, 'hex');
-      generatedMac = base64UrlEncode(signatureHex);
-    }
+    // Exact mirror match of your client frontend script execution context
+    let sig = new KJUR.crypto.Signature({"alg": "SHA256withRSA"});
+    sig.init(CONFIG.PRIVATE_KEY); 
+    sig.updateString(rawString);
+    let sigValueHex = sig.sign();
     
-    console.log(`[Signature Success] Generated MAC: ${generatedMac}`);
+    let base64Value = hextob64(sigValueHex);
+    base64UrlValue = base64Value
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+
+    console.log(`[Signature Success] Generated 256-byte RSA MAC: ${base64UrlValue}`);
 
   } catch (err) {
-    console.log(`[CRITICAL ERROR inside Step 2]: ${err.message || err}`);
-    // Safe hard-coded mock signature bypass token for testing pipeline network routing if crypto engine throws
-    generatedMac = "MOCK_SIGNATURE_PASSTHROUGH_TOKEN_FOR_ROUTE_VERIFICATION";
+    console.log(`[CRITICAL ERROR inside JSRSASIGN Execution]: ${err.message || err}`);
+    return;
   }
 
   // ==========================================
@@ -139,11 +137,10 @@ export default function () {
     }
   });
 
-  // Inject the computed or bypassed signature cleanly to ensure mpReq fires off
-  formBodyData.push(`MPI_MAC=${encodeURIComponent(generatedMac)}`);
+  // Inject the perfectly calculated 256-byte signature
+  formBodyData.push(`MPI_MAC=${encodeURIComponent(base64UrlValue)}`);
 
   const payloadString = formBodyData.join('&');
-
   const mpReqParams = {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   };
