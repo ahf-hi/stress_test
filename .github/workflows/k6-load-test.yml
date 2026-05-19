@@ -2,10 +2,10 @@ name: Payment Gateway Stress Test
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch: # Allows you to trigger the test manually from GitHub web interface
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
   run-k6-stress:
@@ -16,7 +16,12 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
       - name: Run k6 Load Test Routine
-        uses: grafana/k6-action@v1
-        with:
-          filename: payment_stress_test.js
+        run: k6 run payment_stress_test.js
