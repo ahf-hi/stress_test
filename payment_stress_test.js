@@ -47,7 +47,6 @@ export const options = {
 };
 
 // --- 2. EVALUATION LOADER FOR OUTDATED BABEL PARSERS ---
-// This runtime-eval completely sidesteps ESM static/dynamic hoisting glitches.
 const JSRSASIGN_URL = "https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js";
 let jsrsasignLoaded = false;
 
@@ -56,10 +55,9 @@ function loadJsrsasign() {
   
   const res = http.get(JSRSASIGN_URL);
   if (res.status !== 200) {
-    throw new Error(`Failed to download jsrsasign library string wrapper from CDN. Code: ${res.status}`);
+    throw new Error(`Failed to download jsrsasign library from CDN. Code: ${res.status}`);
   }
   
-  // Safe evaluation context execution inside the engine environment scope
   (0, eval)(res.body); 
   jsrsasignLoaded = true;
 }
@@ -111,15 +109,14 @@ export default function () {
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: SAFE EVAL CRYPTO LOAD & SIGN
+  // STEP 2: PARSE PEM KEY & SIGN
   // ==========================================
   let base64UrlValue = '';
   try {
-    // Dynamically evaluate text source string layout cleanly 
     loadJsrsasign();
 
-    // Pull from the newly evaluated global context window objects
     const KJUR = globalThis.KJUR;
+    const KEYUTIL = globalThis.KEYUTIL;
     const hextob64 = globalThis.hextob64;
 
     const rawString = 
@@ -133,9 +130,11 @@ export default function () {
       formFields.MPI_ADDITIONAL_INFO_IND +
       formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Identical exact match to your browser's cryptographic execution stack
+    // FIX: Parse the raw PEM text explicitly into a Key Object using KEYUTIL
+    const rsaKeyObject = KEYUTIL.getKey(CONFIG.PRIVATE_KEY);
+
     let sig = new KJUR.crypto.Signature({"alg": "SHA256withRSA"});
-    sig.init(CONFIG.PRIVATE_KEY); 
+    sig.init(rsaKeyObject); // Pass the validated key object instead of the raw string
     sig.updateString(rawString);
     let sigValueHex = sig.sign();
     
