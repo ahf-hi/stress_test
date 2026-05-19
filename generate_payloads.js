@@ -26,19 +26,22 @@ JKwerp3P1CDGWA40d9DNeeptd3cSML2X+SHWkjwNaasxZDpmKZXQwmiInGmrHc14
 GLfEqc86dDKYdFb2s5UkjiuqU6t5mlWelYf22hS7EwPiTNM30r5kUSAZt/nAnJQj
 NectAoGADXNyBnmq65m1YMlWe+PtDEi/hUZagVDPG7xh3T811fAi6+TZSLXCDVR4
 gju9FJkwjce29Bmt7xbFYRvIfVUGbuvMxvgBJG4A2BG8wrFbIGDLQEk5VYBvSkKKhniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=
------END RSA PRIVATE KEY-----`;
-
+-----END RSA PRIVATE KEY-----`; // Your Full Key
 const merchantId = 'SYSSPC000000001';
 
-const data = ['trxId,mac'];
+const data = ['trxId,mac,date'];
 for (let i = 0; i < 1000; i++) {
-  const trxId = `DMYPAG${Date.now() + i}`;
-  // CONCATENATION ORDER MUST MATCH BANK SPEC EXACTLY
-  const stringToSign = "SALES" + merchantId + trxId + "20260519458100JSONTNG_MY";
+  const d = new Date(Date.now() + i * 1000);
+  const dateStr = d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0') + d.getHours().toString().padStart(2,'0') + d.getMinutes().toString().padStart(2,'0') + d.getSeconds().toString().padStart(2,'0');
+  const trxId = "DMYPAG" + dateStr;
+  
+  // MATCHES YOUR FORM'S clear_mac() CONCATENATION ORDER:
+  const rawString = "SALES" + merchantId + trxId + dateStr + "458" + "100" + "JSON" + "" + "TNG_MY";
+  
   const signer = crypto.createSign('RSA-SHA256');
-  signer.update(stringToSign);
+  signer.update(rawString);
   const mac = signer.sign(PRIVATE_KEY, 'base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-  data.push(`${trxId},${mac}`);
+  
+  data.push(`${trxId},${mac},${dateStr}`);
 }
 fs.writeFileSync('payloads.csv', data.join('\n'));
-console.log("payloads.csv created.");
