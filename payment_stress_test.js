@@ -1,8 +1,12 @@
+// --- BROWSER SHIM FOR K6 COMPATIBILITY ---
+// Tricks jsrsasign into thinking it's running in an environment with basic browser globals
+globalThis.navigator = { userAgent: "k6" };
+globalThis.window = globalThis;
+
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-// --- IMPORT JSRSASIGN PURE JS CRYPTO VIA CDN ---
-// This completely bypasses the broken native k6 crypto engine!
+// --- IMPORT JSRSASIGN VIA CDN ---
 import { KJUR, hextob64 } from 'https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.27/jsrsasign-all-min.js';
 
 // --- CONFIGURATION ---
@@ -23,7 +27,7 @@ const CONFIG = {
     "Juvf1uqiU6lC54y2up8gH8NLi+CP//shYDoz7aJlwgiqS94L0CIFZvWLHqsHIFxc\n" +
     "uhUHKsaINr60VcnvVZLHc/UoIwJLT1Hk2gIMnxxnCqkL1m/BNDeYaT30DLMPaeby\n" +
     "naEsq6JG+pk0szJ9ivTZQrVzWL88qYJor7eR+MGBh65fhhSZyn229EL9DtwVGkU2\n" +
-    "8rlFwcCalhmCIgJO9vPK3QLoomT4FfokuECrxv0UwopYPBXyUycvzHmvbFTt5FS8\n" +
+    "8rlFwcCalhmCIgJO9vPK3QLoomT4FfokuECrxv0UwopYPBXyUycvzHmvbFTt5FS\n" +
     "KLgfMcMCgYEAwqKKSeAuoQpJO4x8hP7fYQ94ezoRkDlV9Q5ICcgJW6giMbzT2adg\n" +
     "d2nuxQIwLRX/P4Dwh2OxCnOrX1FAMxmbs9/6OGgjHhKAAM0pIowZFs4Vqu/QlAZ5\n" +
     "UdPzHdGuA5oSEBhVMxe0L1dWbQr0UpjemH6gOfswDFYsIawLXOPI+TsCgYEA4fIm\n" +
@@ -93,7 +97,7 @@ export default function () {
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: MIRRORED PAGE-SCRIPT SIGNATURE ENGINE
+  // STEP 2: FRONTIER MIRRORED SIGNATURE ENGINE
   // ==========================================
   let base64UrlValue = '';
   try {
@@ -108,7 +112,7 @@ export default function () {
       formFields.MPI_ADDITIONAL_INFO_IND +
       formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Exact mirror match of your client frontend script execution context
+    // Direct structural mirror layout of your exact browser execution code
     let sig = new KJUR.crypto.Signature({"alg": "SHA256withRSA"});
     sig.init(CONFIG.PRIVATE_KEY); 
     sig.updateString(rawString);
@@ -137,7 +141,7 @@ export default function () {
     }
   });
 
-  // Inject the perfectly calculated 256-byte signature
+  // Inject the computed signature parameter onto the wire
   formBodyData.push(`MPI_MAC=${encodeURIComponent(base64UrlValue)}`);
 
   const payloadString = formBodyData.join('&');
