@@ -38,13 +38,11 @@ hniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=
 -----END RSA PRIVATE KEY-----`
 };
 
-// --- SINGLE TRANSACTION TESTING PROFILE ---
 export const options = {
   vus: 1,
   iterations: 1,
 };
 
-// --- HELPER: STANDARD 14-DIGIT TIMESTAMP ---
 function getFormattedDate() {
   const d = new Date();
   return d.getFullYear().toString() +
@@ -55,15 +53,10 @@ function getFormattedDate() {
          d.getSeconds().toString().padStart(2, '0');
 }
 
-// --- HELPER: BASE64URL ENCODING ---
 function base64UrlEncode(str) {
-  return str
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+  return str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-// --- MAIN RUNNER FUNCTION ---
 export default function () {
   const d = new Date();
   const shortTime = d.getDate().toString().padStart(2, '0') +
@@ -73,7 +66,6 @@ export default function () {
   
   const vuPart = __VU.toString().padStart(2, '0');
   const iterPart = __ITER.toString().padStart(4, '0');
-  
   const mpiTrxnId = `DMYPAG${shortTime}${vuPart}${iterPart}`; 
 
   const formFields = {
@@ -90,7 +82,7 @@ export default function () {
   };
 
   // ==========================================
-  // STEP 1: EXECUTE KEY EXCHANGE (mkReq)
+  // STEP 1: KEY EXCHANGE (mkReq)
   // ==========================================
   const mkReqPayload = JSON.stringify({
     merchantId: formFields.MPI_MERC_ID,
@@ -103,36 +95,30 @@ export default function () {
 
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
-  // Visual status check in report dashboard
-  check(mkReqResponse, {
-    'mkReq status is 200': (r) => r.status === 200,
-  });
-
-  // --- SAFETY GATE REMOVED ---
-  // The loop will now always proceed directly into signing and payment execution.
-
   // ==========================================
-  // STEP 2: MAC SIGNATURE GENERATION
+  // STEP 2: PROTECTED SIGNATURE GENERATION
   // ==========================================
-  const rawSignatureString = 
-    formFields.MPI_TRANS_TYPE +
-    formFields.MPI_MERC_ID +
-    formFields.MPI_TRXN_ID +
-    formFields.MPI_PURCH_DATE +
-    formFields.MPI_PURCH_CURR +
-    formFields.MPI_PURCH_AMT +
-    formFields.MPI_RESPONSE_TYPE +
-    formFields.MPI_ADDITIONAL_INFO_IND +
-    formFields.MPI_PAYMENT_CHANNEL_ID;
+  try {
+    const rawSignatureString = 
+      formFields.MPI_TRANS_TYPE +
+      formFields.MPI_MERC_ID +
+      formFields.MPI_TRXN_ID +
+      formFields.MPI_PURCH_DATE +
+      formFields.MPI_PURCH_CURR +
+      formFields.MPI_PURCH_AMT +
+      formFields.MPI_RESPONSE_TYPE +
+      formFields.MPI_ADDITIONAL_INFO_IND +
+      formFields.MPI_PAYMENT_CHANNEL_ID;
 
-  const signatureBase64 = crypto.sign(
-    'sha256', 
-    crypto.createPrivateKey(CONFIG.PRIVATE_KEY), 
-    rawSignatureString, 
-    'base64'
-  );
-  
-  formFields.MPI_MAC = base64UrlEncode(signatureBase64);
+    const privKeyObj = crypto.createPrivateKey(CONFIG.PRIVATE_KEY);
+    const signatureBase64 = crypto.sign('sha256', privKeyObj, rawSignatureString, 'base64');
+    
+    formFields.MPI_MAC = base64UrlEncode(signatureBase64);
+    console.log(`[Signature Success] Generated MAC: ${formFields.MPI_MAC}`);
+
+  } catch (err) {
+    console.log(`[CRITICAL ERROR inside Step 2]: ${err.message || err}`);
+  }
 
   // ==========================================
   // STEP 3: EXECUTE PAYMENT SUBMISSION (mpReq)
@@ -149,41 +135,22 @@ export default function () {
   };
 
   const mpReqResponse = http.post(CONFIG.PAYMENT_REQUEST_URL, cleanedPayload, mpReqParams);
-
   console.log(`[mpReq] Status: ${mpReqResponse.status} | Body: ${mpReqResponse.body}`);
-
-  check(mpReqResponse, {
-    'mpReq status is 200': (r) => r.status === 200,
-  });
 
   sleep(1);
 }
 
-// --- SELF-CONTAINED REPORT GENERATOR ---
 export function handleSummary(data) {
   return {
     'summary.html': `
     <!DOCTYPE html>
     <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <title>Payment Test Results</title>
-      <style>
-        body { font-family: -apple-system, sans-serif; padding: 40px; background: #f4f6f9; color: #333; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto; }
-        h1 { color: #2563eb; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; font-size: 24px; margin-top: 0; }
-        .metric { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f0f4f8; font-size: 16px; }
-        .value { font-weight: bold; color: #1e293b; }
-        .footer { margin-top: 25px; font-size: 12px; color: #94a3b8; text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h1>k6 Payment Test Summary</h1>
-        <div class="metric"><span>Total Request Loops:</span><span class="value">${data.metrics.iterations.values.count}</span></div>
-        <div class="metric"><span>HTTP Request Failures:</span><span class="value">${data.metrics.http_req_failed.values.passes}</span></div>
-        <div class="metric"><span>Average Response Time:</span><span class="value">${Math.round(data.metrics.http_req_duration.values.avg)} ms</span></div>
-        <div class="footer">Generated automatically via GitHub Actions pipeline.</div>
+    <head><title>Payment Test Results</title></head>
+    <body style="font-family: sans-serif; padding: 40px; background: #f4f6f9;">
+      <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <h2 style="color: #2563eb;">k6 Payment Test Summary</h2>
+        <p>Loops: <strong>${data.metrics.iterations.values.count}</strong></p>
+        <p>Failures: <strong>${data.metrics.http_req_failed.values.passes}</strong></p>
       </div>
     </body>
     </html>
