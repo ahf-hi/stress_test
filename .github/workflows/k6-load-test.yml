@@ -19,4 +19,11 @@ jobs:
       - name: Run k6 Load Test Routine
         uses: k6io/action@v0.2.0
         with:
-          filename: payment_stress_test.js   # This forces it to target your wallet script
+          filename: payment_stress_test.js
+
+      # NEW STEP: Save the generated HTML file so you can download it
+      - name: Upload HTML Performance Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-payment-report
+          path: summary.html
