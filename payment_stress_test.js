@@ -77,8 +77,8 @@ export default function () {
     MPI_PURCH_AMT: '100', 
     MPI_RESPONSE_TYPE: 'JSON',
     MPI_ADDITIONAL_INFO_IND: '', 
-    MPI_PAYMENT_CHANNEL_ID: 'TNG_MY',
-    MPI_RETURN_URL: CONFIG.VERCEL_CALLBACK_URL
+    MPI_PAYMENT_CHANNEL_ID: 'TNG_MY'
+    // MPI_RETURN_URL removed here to completely hide it from step 3 submission
   };
 
   // ==========================================
@@ -128,25 +128,27 @@ export default function () {
   // ==========================================
   // STEP 3: EXECUTE PAYMENT SUBMISSION (mpReq)
   // ==========================================
-  const cleanedPayload = {};
   
-  // Clean initial form fields
+  // Construct a flat application/x-www-form-urlencoded body payload explicitly
+  let formBodyData = [];
   Object.keys(formFields).forEach((key) => {
     if (formFields[key] !== '') {
-      cleanedPayload[key] = formFields[key];
+      formBodyData.push(`${encodeURIComponent(key)}=${encodeURIComponent(formFields[key])}`);
     }
   });
 
-  // Explicitly inject the computed MAC signature into the payload
+  // Force append the compiled MAC token straight onto the request form parameters string
   if (generatedMac) {
-    cleanedPayload['MPI_MAC'] = generatedMac;
+    formBodyData.push(`MPI_MAC=${encodeURIComponent(generatedMac)}`);
   }
+
+  const payloadString = formBodyData.join('&');
 
   const mpReqParams = {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   };
 
-  const mpReqResponse = http.post(CONFIG.PAYMENT_REQUEST_URL, cleanedPayload, mpReqParams);
+  const mpReqResponse = http.post(CONFIG.PAYMENT_REQUEST_URL, payloadString, mpReqParams);
   console.log(`[mpReq] Status: ${mpReqResponse.status} | Body: ${mpReqResponse.body}`);
 
   check(mpReqResponse, {
