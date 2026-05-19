@@ -82,7 +82,7 @@ export default function () {
     MPI_PURCH_DATE: getFormattedDate(),
     MPI_TRXN_ID: mpiTrxnId,
     MPI_PURCH_CURR: '458',
-    MPI_PURCH_AMT: '10.00', 
+    MPI_PURCH_AMT: '100', 
     MPI_RESPONSE_TYPE: 'JSON',
     MPI_ADDITIONAL_INFO_IND: '', 
     MPI_PAYMENT_CHANNEL_ID: 'TNG_MY',
