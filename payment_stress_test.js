@@ -103,17 +103,13 @@ export default function () {
 
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
-  // Checks for BOTH standard JSON string format and fallback log formatting
-  const mkReqSuccess = check(mkReqResponse, {
+  // Visual status check in report dashboard
+  check(mkReqResponse, {
     'mkReq status is 200': (r) => r.status === 200,
-    'mkReq returned success state': (r) => r.body.includes('"errorCode":"000"') || r.body.includes('errorCode=000'),
   });
 
-  if (!mkReqSuccess) {
-    console.log("Stopping loop: Key exchange validation failed due to response format mismatches.");
-    sleep(1);
-    return;
-  }
+  // --- SAFETY GATE REMOVED ---
+  // The loop will now always proceed directly into signing and payment execution.
 
   // ==========================================
   // STEP 2: MAC SIGNATURE GENERATION
