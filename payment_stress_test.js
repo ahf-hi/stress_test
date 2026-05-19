@@ -1,6 +1,5 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import crypto from 'k6/crypto';
 
 // --- CONFIGURATION ---
 const CONFIG = {
@@ -8,34 +7,8 @@ const CONFIG = {
   PAYMENT_REQUEST_URL: "https://devlinkv2.paydee.co/mpigwv2/mpReq",
   PUBLIC_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq8j2SHHfzMLlhYppnlk-QqjjjZwMkhK6s6rERd0JhhY_6-Md4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxViWe1dzG5TQakJ_i8ZOQuUYFJg02RcwUTzE3ty-x7mkwj9t2wAdRqTagyaDIAVMTxP_Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mgr3Cyky0F-cHpEFSi3rPSSLD_FVHlJRW2cODVm8E-s98CURQYs1npzDztzZgZPnnb9K57CB2Z50Ve6qUV7z4-uHs3nehiMJHktIs7LQIDAQAB",
   
-  // Perfectly structured PKCS#1 PEM string for native Go/k6 consumption
-  PRIVATE_KEY: "-----BEGIN RSA PRIVATE KEY-----\n" +
-    "MIIEogIBAAKCAQEAq8j2SHHfzMLlhYppnlk+QqjjjZwMkhK6s6rERd0JhhY/6+Md\n" +
-    "4Z0327uEdfNbJrSEPJVPT55gjRhx4MorEhrabuafuY8thSPS4epwkOjjPtELwZxV\n" +
-    "iWe1dzG5TQakJ/i8ZOQuUYFJg02RcwUTzE3ty+x7mkwj9t2wAdRqTagyaDIAVMTx\n" +
-    "P/Y4AS76xjA3aH43Q0HKHGAxxIlXBIQxImuPhlUbPtVtTHIsUwkIx2BDh8kPZ3Mg\n" +
-    "r3Cyky0F+cHpEFSi3rPSSLD/FVHlJRW2cODVm8E+s98CURQYs1npzDztzZgZPnnb\n" +
-    "9K57CB2Z50Ve6qUV7z4+uHs3nehiMJHktIs7LQIDAQABAoIBAAufb7vBaf0ugfKx\n" +
-    "8D56AaKR+b925korK+hZw/40G9+veV4KQlclrjCsSc854BoeJET9wd18X5em++wp\n" +
-    "Juvf1uqiU6lC54y2up8gH8NLi+CP//shYDoz7aJlwgiqS94L0CIFZvWLHqsHIFxc\n" +
-    "uhUHKsaINr60VcnvVZLHc/UoIwJLT1Hk2gIMnxxnCqkL1m/BNDeYaT30DLMPaeby\n" +
-    "naEsq6JG+pk0szJ9ivTZQrVzWL88qYJor7eR+MGBh65fhhSZyn229EL9DtwVGkU2\n" +
-    "8rlFwcCalhmCIgJO9vPK3QLoomT4FfokuECrxv0UwopYPBXyUycvzHmvbFTt5FS\n" +
-    "KLgfMcMCgYEAwqKKSeAuoQpJO4x8hP7fYQ94ezoRkDlV9Q5ICcgJW6giMbzT2adg\n" +
-    "d2nuxQIwLRX/P4Dwh2OxCnOrX1FAMxmbs9/6OGgjHhKAAM0pIowZFs4Vqu/QlAZ5\n" +
-    "UdPzHdGuA5oSEBhVMxe0L1dWbQr0UpjemH6gOfswDFYsIawLXOPI+TsCgYEA4fIm\n" +
-    "QqIBoYAGUPuNfjoK2ZQpRaFGAGuvfpSyljMQDnYJJtOGTW8SI0QFzd31snYx5yP\n" +
-    "vEvkR4lEcVPi6t6Mkdd4KVkmktdjIQ0ZOAlbBaaEWFy6lN7TyINJ7BAYFO/1D3Uj\n" +
-    "4Gi9O7dV7v49Bzp5tVNFrUihM1yfOdUfP3gCFrcCgYB8YtoT6mSCYIt6tgaiDCx/\n" +
-    "4B40SmENFcdcTBs3vRJV9DaeKLoPIEujJR0F5KcbOTKdx+5v6AMt1cxQpyFrRtNd\n" +
-    "+ib0Q4El59bMLFE8leI208+/JXHcF+MSq2x0wxr9jEo85QAWHfD2TE+ccmLAIpgn\n" +
-    "Rs1pIKGNUMj1X/kHDT/UHwKBgAsmSeEL6C56OlME2SJsr/hESkJ7RAIVQyw4yBEY\n" +
-    "JKwerp3P1CDGWA40d9DNeeptd3cSML2X+SHWkjwNaasxZDpmKZXQwmiInGmrHc14\n" +
-    "GLfEqc86dDKYdFb2s5UkjiuqU6t5mlWelYf22hS7EwPiTNM30r5kUSAZt/nAnJQj\n" +
-    "NectAoGADXNyBnmq65m1YMlWe+PtDEi/hUZagVDPG7xh3T811fAi6+TZSLXCDVR4\n" +
-    "gju9FJkwjce29Bmt7xbFYRvIfVUGbuvMxvgBJG4A2BG8wrFbIGDLQEk5VYBvSkKK\n" +
-    "hniCoSnVEJYlfgyp9ri1vEgXrX18FwY1KADRc4EnDlEzwkkAAl0=\n" +
-    "-----END RSA PRIVATE KEY-----"
+  // URL to your Vercel helper or callback domain to sign strings natively
+  SIGNING_SERVICE_URL: "https://payment-page-virid.vercel.app/api/sign" 
 };
 
 export const options = {
@@ -90,35 +63,31 @@ export default function () {
   console.log(`[mkReq] Status: ${mkReqResponse.status} | Body: ${mkReqResponse.body}`);
 
   // ==========================================
-  // STEP 2: NATIVE K6 RSA SIGNING
+  // STEP 2: OFF-LOAD SIGNING TO NODE/VERCEL
   // ==========================================
   let base64UrlValue = '';
-  try {
-    const rawString = 
-      formFields.MPI_TRANS_TYPE +
-      formFields.MPI_MERC_ID +
-      formFields.MPI_TRXN_ID +
-      formFields.MPI_PURCH_DATE +
-      formFields.MPI_PURCH_CURR +
-      formFields.MPI_PURCH_AMT +
-      formFields.MPI_RESPONSE_TYPE +
-      formFields.MPI_ADDITIONAL_INFO_IND +
-      formFields.MPI_PAYMENT_CHANNEL_ID;
+  
+  const rawString = 
+    formFields.MPI_TRANS_TYPE +
+    formFields.MPI_MERC_ID +
+    formFields.MPI_TRXN_ID +
+    formFields.MPI_PURCH_DATE +
+    formFields.MPI_PURCH_CURR +
+    formFields.MPI_PURCH_AMT +
+    formFields.MPI_RESPONSE_TYPE +
+    formFields.MPI_ADDITIONAL_INFO_IND +
+    formFields.MPI_PAYMENT_CHANNEL_ID;
 
-    // Sign using native Go engine underneath k6 (SHA256withRSA)
-    let signatureBinary = crypto.sign("sha256", CONFIG.PRIVATE_KEY, rawString);
-    
-    // Convert to Base64URL encoding safely
-    let base64Value = btoa(String.fromCharCode(...new Uint8Array(signatureBinary)));
-    base64UrlValue = base64Value
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
+  const signResponse = http.post(CONFIG.SIGNING_SERVICE_URL, JSON.stringify({ text: rawString }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
 
-    console.log(`[Signature Success] Generated Native RSA MAC: ${base64UrlValue}`);
-
-  } catch (err) {
-    console.log(`[CRITICAL CRYPTO ERROR]: ${err.message || err}`);
+  if (signResponse.status === 200) {
+    const resBody = JSON.parse(signResponse.body);
+    base64UrlValue = resBody.mpiMac; // Grabbing the generated MAC from your API backend
+    console.log(`[Signature Success via Backend Service]: ${base64UrlValue}`);
+  } else {
+    console.log(`[CRITICAL] External Signing Service Failed with status: ${signResponse.status}. falling back...`);
     return;
   }
 
